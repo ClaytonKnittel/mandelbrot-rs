@@ -22,7 +22,7 @@ use bevy::{
     render_asset::RenderAssets,
     render_graph::{self, RenderGraph, RenderLabel},
     render_resource::{
-      AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
+      BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
       CachedComputePipelineId, CachedPipelineState, ComputePassDescriptor,
       ComputePipelineDescriptor, PipelineCache, ShaderStages, StorageTextureAccess, TextureFormat,
       TextureUsages, binding_types::texture_storage_2d,
