@@ -2,14 +2,14 @@ use std::borrow::Cow;
 
 use bevy::{
   DefaultPlugins,
-  app::{App, Plugin, Startup, Update},
+  app::{App, Plugin, Startup},
   asset::{AssetServer, Assets, Handle, RenderAssetUsages},
   camera::Camera2d,
   color::Color,
   ecs::{
     resource::Resource,
     schedule::IntoScheduleConfigs,
-    system::{Commands, Res, ResMut, Single},
+    system::{Commands, Res, ResMut},
     world::World,
   },
   image::Image,
@@ -54,7 +54,6 @@ fn main() {
     }))
     .add_plugins(MandelbrotComputePlugin)
     .add_systems(Startup, setup)
-    .add_systems(Update, switch_textures)
     .run();
 }
 
@@ -63,12 +62,11 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
   image.asset_usage = RenderAssetUsages::RENDER_WORLD;
   image.texture_descriptor.usage =
     TextureUsages::COPY_DST | TextureUsages::STORAGE_BINDING | TextureUsages::TEXTURE_BINDING;
-  let image0 = images.add(image.clone());
-  let image1 = images.add(image);
+  let image = images.add(image);
 
   commands.spawn((
     Sprite {
-      image: image0.clone(),
+      image: image.clone(),
       custom_size: Some(Vec2::new(SIZE.0 as f32, SIZE.1 as f32)),
       ..default()
     },
@@ -76,25 +74,16 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
   ));
   commands.spawn(Camera2d);
 
-  commands.insert_resource(MandelbrotImages { texture_a: image0, texture_b: image1 });
-}
-
-fn switch_textures(images: Res<MandelbrotImages>, mut sprite: Single<&mut Sprite>) {
-  if sprite.image == images.texture_a {
-    sprite.image = images.texture_b.clone();
-  } else {
-    sprite.image = images.texture_a.clone();
-  }
+  commands.insert_resource(MandelbrotImages { texture: image });
 }
 
 #[derive(Resource, Clone, ExtractResource)]
 struct MandelbrotImages {
-  texture_a: Handle<Image>,
-  texture_b: Handle<Image>,
+  texture: Handle<Image>,
 }
 
 #[derive(Resource)]
-struct MandelbrotImageBindGroups([BindGroup; 2]);
+struct MandelbrotImageBindGroups(BindGroup);
 
 fn prepare_bind_group(
   mut commands: Commands,
@@ -103,19 +92,13 @@ fn prepare_bind_group(
   game_of_life_images: Res<MandelbrotImages>,
   render_device: Res<RenderDevice>,
 ) {
-  let view_a = gpu_images.get(&game_of_life_images.texture_a).unwrap();
-  let view_b = gpu_images.get(&game_of_life_images.texture_b).unwrap();
+  let view = gpu_images.get(&game_of_life_images.texture).unwrap();
   let bind_group_0 = render_device.create_bind_group(
     None,
     &pipeline.texture_bind_group_layout,
-    &BindGroupEntries::sequential((&view_a.texture_view, &view_b.texture_view)),
+    &BindGroupEntries::sequential((&view.texture_view,)),
   );
-  let bind_group_1 = render_device.create_bind_group(
-    None,
-    &pipeline.texture_bind_group_layout,
-    &BindGroupEntries::sequential((&view_b.texture_view, &view_a.texture_view)),
-  );
-  commands.insert_resource(MandelbrotImageBindGroups([bind_group_0, bind_group_1]));
+  commands.insert_resource(MandelbrotImageBindGroups(bind_group_0));
 }
 
 struct MandelbrotComputePlugin;
@@ -179,7 +162,7 @@ fn init_mandelbrot_pipeline(
 
 enum MandelbrotState {
   Loading,
-  Update(usize),
+  Update,
 }
 
 struct MandelbrotNode {
@@ -202,7 +185,7 @@ impl render_graph::Node for MandelbrotNode {
       MandelbrotState::Loading => {
         match pipeline_cache.get_compute_pipeline_state(pipeline.checker_board_pipeline) {
           CachedPipelineState::Ok(_) => {
-            self.state = MandelbrotState::Update(0);
+            self.state = MandelbrotState::Update;
           }
           // If the shader hasn't loaded yet, just wait.
           CachedPipelineState::Err(PipelineCacheError::ShaderNotLoaded(_)) => {}
@@ -212,13 +195,7 @@ impl render_graph::Node for MandelbrotNode {
           _ => {}
         }
       }
-      MandelbrotState::Update(0) => {
-        self.state = MandelbrotState::Update(1);
-      }
-      MandelbrotState::Update(1) => {
-        self.state = MandelbrotState::Update(0);
-      }
-      MandelbrotState::Update(_) => unreachable!(),
+      MandelbrotState::Update => {}
     }
   }
 
@@ -228,7 +205,7 @@ impl render_graph::Node for MandelbrotNode {
     render_context: &mut RenderContext,
     world: &World,
   ) -> Result<(), render_graph::NodeRunError> {
-    let bind_groups = &world.resource::<MandelbrotImageBindGroups>().0;
+    let bind_group = &world.resource::<MandelbrotImageBindGroups>().0;
     let pipeline_cache = world.resource::<PipelineCache>();
     let pipeline = world.resource::<MandelbrotPipeline>();
 
@@ -238,11 +215,11 @@ impl render_graph::Node for MandelbrotNode {
 
     match self.state {
       MandelbrotState::Loading => {}
-      MandelbrotState::Update(index) => {
+      MandelbrotState::Update => {
         let checker_board_pipeline = pipeline_cache
           .get_compute_pipeline(pipeline.checker_board_pipeline)
           .unwrap();
-        pass.set_bind_group(0, &bind_groups[index], &[]);
+        pass.set_bind_group(0, bind_group, &[]);
         pass.set_pipeline(checker_board_pipeline);
         pass.dispatch_workgroups(SIZE.0 / WORKGROUP_SIZE, SIZE.1 / WORKGROUP_SIZE, 1);
       }
