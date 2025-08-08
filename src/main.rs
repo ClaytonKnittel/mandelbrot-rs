@@ -3,7 +3,7 @@ use std::borrow::Cow;
 use bevy::{
   DefaultPlugins,
   app::{App, Plugin, Startup},
-  asset::{AssetServer, Assets, Handle, RenderAssetUsages},
+  asset::{AssetMetaCheck, AssetMode, AssetPlugin, AssetServer, Assets, Handle, RenderAssetUsages},
   camera::Camera2d,
   color::Color,
   ecs::{
@@ -46,13 +46,21 @@ const WORKGROUP_SIZE: u32 = 8;
 fn main() {
   App::new()
     .insert_resource(ClearColor(Color::BLACK))
-    .add_plugins(DefaultPlugins.set(WindowPlugin {
-      primary_window: Some(Window {
-        resolution: (1280., 720.).into(),
-        ..default()
-      }),
-      ..default()
-    }))
+    .add_plugins(
+      DefaultPlugins
+        .set(WindowPlugin {
+          primary_window: Some(Window {
+            resolution: (1280., 720.).into(),
+            ..default()
+          }),
+          ..default()
+        })
+        .set(AssetPlugin {
+          mode: AssetMode::Unprocessed,
+          meta_check: AssetMetaCheck::Never,
+          ..default()
+        }),
+    )
     .add_plugins(MandelbrotComputePlugin)
     .add_systems(Startup, setup)
     .run();
