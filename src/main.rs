@@ -13,6 +13,7 @@ use bevy::{
     world::World,
   },
   image::Image,
+  log::info,
   math::{Vec2, Vec3},
   prelude::{PluginGroup, default},
   render::{
@@ -22,10 +23,12 @@ use bevy::{
     render_asset::RenderAssets,
     render_graph::{self, RenderGraph, RenderLabel},
     render_resource::{
-      BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
+      AsBindGroup, BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries,
+      BindingResource, Buffer, BufferBinding, BufferDescriptor, BufferInitDescriptor, BufferUsages,
       CachedComputePipelineId, CachedPipelineState, ComputePassDescriptor,
-      ComputePipelineDescriptor, PipelineCache, ShaderStages, StorageTextureAccess, TextureFormat,
-      TextureUsages, binding_types::texture_storage_2d,
+      ComputePipelineDescriptor, MapMode, PipelineCache, ShaderStages, ShaderType,
+      StorageTextureAccess, TextureFormat, TextureUsages, UniformBuffer,
+      binding_types::{texture_storage_2d, uniform_buffer},
     },
     renderer::{RenderContext, RenderDevice},
     texture::GpuImage,
@@ -33,15 +36,23 @@ use bevy::{
   },
   shader::PipelineCacheError,
   sprite::Sprite,
+  time::Time,
   transform::components::Transform,
   window::{Window, WindowPlugin},
 };
+use bytemuck::{Pod, Zeroable, bytes_of};
 
 const SHADER_ASSET_PATH: &str = "mandelbrot.wgsl";
 
 const DISPLAY_FACTOR: u32 = 1;
 const SIZE: (u32, u32) = (1280 / DISPLAY_FACTOR, 720 / DISPLAY_FACTOR);
 const WORKGROUP_SIZE: u32 = 8;
+
+#[derive(Resource, Clone, Copy, Pod, Zeroable, ShaderType)]
+#[repr(C)]
+struct Uniforms {
+  time: u32,
+}
 
 fn main() {
   App::new()
@@ -100,12 +111,23 @@ fn prepare_bind_group(
   gpu_images: Res<RenderAssets<GpuImage>>,
   game_of_life_images: Res<MandelbrotImages>,
   render_device: Res<RenderDevice>,
+  mut uniform_data: ResMut<Uniforms>,
 ) {
+  uniform_data.time += 1;
+  pipeline
+    .uniform_buffer
+    .slice(..)
+    .get_mapped_range_mut()
+    .copy_from_slice(bytes_of(&*uniform_data));
+
   let view = gpu_images.get(&game_of_life_images.texture).unwrap();
   let bind_group_0 = render_device.create_bind_group(
     None,
     &pipeline.texture_bind_group_layout,
-    &BindGroupEntries::sequential((&view.texture_view,)),
+    &BindGroupEntries::sequential((
+      &view.texture_view,
+      pipeline.uniform_buffer.as_entire_buffer_binding(),
+    )),
   );
   commands.insert_resource(MandelbrotImageBindGroups(bind_group_0));
 }
@@ -136,6 +158,7 @@ impl Plugin for MandelbrotComputePlugin {
 struct MandelbrotPipeline {
   texture_bind_group_layout: BindGroupLayout,
   checker_board_pipeline: CachedComputePipelineId,
+  uniform_buffer: Buffer,
 }
 
 fn init_mandelbrot_pipeline(
@@ -144,14 +167,22 @@ fn init_mandelbrot_pipeline(
   asset_server: Res<AssetServer>,
   pipeline_cache: Res<PipelineCache>,
 ) {
+  let buffer = render_device.create_buffer(&BufferDescriptor {
+    label: Some("Uniforms"),
+    usage: BufferUsages::UNIFORM | BufferUsages::STORAGE | BufferUsages::COPY_DST,
+    size: size_of::<Uniforms>() as u64,
+    mapped_at_creation: true,
+  });
+  commands.insert_resource(Uniforms { time: 200 });
+
   let texture_bind_group_layout = render_device.create_bind_group_layout(
     "Mandelbrot",
     &BindGroupLayoutEntries::sequential(
       ShaderStages::COMPUTE,
-      (texture_storage_2d(
-        TextureFormat::Rgba32Float,
-        StorageTextureAccess::WriteOnly,
-      ),),
+      (
+        texture_storage_2d(TextureFormat::Rgba32Float, StorageTextureAccess::WriteOnly),
+        uniform_buffer::<Uniforms>(false),
+      ),
     ),
   );
 
@@ -166,6 +197,7 @@ fn init_mandelbrot_pipeline(
   commands.insert_resource(MandelbrotPipeline {
     texture_bind_group_layout,
     checker_board_pipeline,
+    uniform_buffer: buffer,
   });
 }
 

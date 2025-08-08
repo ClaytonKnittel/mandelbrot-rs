@@ -1,4 +1,9 @@
+struct Uniforms {
+    time: u32,
+}
+
 @group(0) @binding(0) var output: texture_storage_2d<rgba32float, write>;
+@group(0) @binding(1) var<uniform> uniforms: Uniforms;
 
 const MAX_ITERS: u32 = 2000;
 const DIVERGENCE_BOUND: f32 = 1.e5;
@@ -49,8 +54,9 @@ fn mandelbrot_color(x: f32, y: f32) -> vec4<f32> {
 fn checker_board(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
-    let x = 2. * f32(invocation_id.x) / 1280. - 1.5;
-    let y = 2. * f32(invocation_id.y) / 720. - 1.;
+    let f = pow(0.5, f32(uniforms.time) / 200.);
+    let x = (2. * f32(invocation_id.x) / 1280. - 1.) * f - 0.5;
+    let y = (2. * f32(invocation_id.y) / 720. - 1.) * f;
 
     textureStore(output, location, mandelbrot_color(x, y));
 }
