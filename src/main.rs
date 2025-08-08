@@ -18,7 +18,7 @@ use bevy::{
   render::{
     Render, RenderApp, RenderStartup, RenderSystems,
     camera::ClearColor,
-    extract_resource::ExtractResource,
+    extract_resource::{ExtractResource, ExtractResourcePlugin},
     render_asset::RenderAssets,
     render_graph::{self, RenderGraph, RenderLabel},
     render_resource::{
@@ -125,7 +125,7 @@ struct MandelbrotLabel;
 
 impl Plugin for MandelbrotComputePlugin {
   fn build(&self, app: &mut App) {
-    // app.add_plugins(ExtractResourcePlugin::<GameOfLifeImages>::default());
+    app.add_plugins(ExtractResourcePlugin::<MandelbrotImages>::default());
     let render_app = app.sub_app_mut(RenderApp);
     render_app
       .add_systems(RenderStartup, init_mandelbrot_pipeline)
