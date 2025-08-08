@@ -29,6 +29,7 @@ use bevy::{
     },
     renderer::{RenderContext, RenderDevice},
     texture::GpuImage,
+    view::Msaa,
   },
   shader::PipelineCacheError,
   sprite::Sprite,
@@ -38,7 +39,7 @@ use bevy::{
 
 const SHADER_ASSET_PATH: &str = "mandelbrot.wgsl";
 
-const DISPLAY_FACTOR: u32 = 4;
+const DISPLAY_FACTOR: u32 = 1;
 const SIZE: (u32, u32) = (1280 / DISPLAY_FACTOR, 720 / DISPLAY_FACTOR);
 const WORKGROUP_SIZE: u32 = 8;
 
@@ -72,7 +73,7 @@ fn setup(mut commands: Commands, mut images: ResMut<Assets<Image>>) {
     },
     Transform::from_scale(Vec3::splat(DISPLAY_FACTOR as f32)),
   ));
-  commands.spawn(Camera2d);
+  commands.spawn((Msaa::Off, Camera2d));
 
   commands.insert_resource(MandelbrotImages { texture: image });
 }
