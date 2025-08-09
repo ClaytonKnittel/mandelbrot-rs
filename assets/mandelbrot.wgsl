@@ -55,8 +55,8 @@ fn checker_board(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
 
     let f = pow(0.5, f32(uniforms.time) / 200.);
-    let x = (2. * f32(invocation_id.x) / 1280. - 1.) * f - 0.5;
-    let y = (2. * f32(invocation_id.y) / 720. - 1.) * f;
+    let x = (2. * f32(invocation_id.x) / 1280. - 1.) * f;
+    let y = (2. * f32(invocation_id.y) / 720. - 1.) * f + 1.;
 
     textureStore(output, location, mandelbrot_color(x, y));
 }

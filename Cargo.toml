@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 bevy = { git = "https://github.com/bevyengine/bevy.git", rev = "584c34006f26123ac282df5885b798204ba05619", default-features = false, features = ["bevy_window", "bevy_winit", "bevy_render", "bevy_sprite", "webgpu", "bevy_asset", "bevy_log", "x11", "trace"] }
 bytemuck = "1.23.2"
+crossbeam-channel = "0.5.15"
 
 [profile.dev.package."*"]
 opt-level = 3
