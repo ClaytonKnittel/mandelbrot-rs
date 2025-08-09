@@ -27,10 +27,9 @@ use bevy::{
     render_graph::{self, RenderGraph, RenderLabel},
     render_resource::{
       BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, Buffer,
-      BufferDescriptor, BufferInitDescriptor, BufferUsages, CachedComputePipelineId,
-      CachedPipelineState, ComputePassDescriptor, ComputePipelineDescriptor, MapMode,
-      PipelineCache, PollType, ShaderStages, ShaderType, StorageTextureAccess, TextureFormat,
-      TextureUsages,
+      BufferInitDescriptor, BufferUsages, CachedComputePipelineId, CachedPipelineState,
+      ComputePassDescriptor, ComputePipelineDescriptor, MapMode, PipelineCache, PollType,
+      ShaderStages, ShaderType, StorageTextureAccess, TextureFormat, TextureUsages,
       binding_types::{texture_storage_2d, uniform_buffer},
     },
     renderer::{RenderContext, RenderDevice},
