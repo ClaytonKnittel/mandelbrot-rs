@@ -141,7 +141,6 @@ fn update_uniforms(
     return;
   }
 
-  info!("Tryna read map!");
   // Maps the buffer so it can be read on the cpu
   pipeline
     .mapped_uniform_buffer
@@ -149,14 +148,12 @@ fn update_uniforms(
     .map_async(MapMode::Write, move |r| match r {
       // This will execute once the gpu is ready, so after the call to poll()
       Ok(_) => {
-        info!("Read map!");
         buffer
           .slice(..)
           .get_mapped_range_mut()
           .copy_from_slice(bytes_of(&uniform_data));
 
         buffer.unmap();
-        info!("Unmapped buffer");
         MAPPED.store(false, Ordering::SeqCst);
       }
       Err(err) => panic!("Failed to map buffer {err}"),
