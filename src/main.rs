@@ -1,7 +1,4 @@
-use std::{
-  borrow::Cow,
-  sync::atomic::{AtomicBool, Ordering},
-};
+use std::borrow::Cow;
 
 use bevy::{
   DefaultPlugins,
@@ -25,10 +22,10 @@ use bevy::{
     render_asset::RenderAssets,
     render_graph::{self, RenderGraph, RenderLabel},
     render_resource::{
-      BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, Buffer,
-      BufferInitDescriptor, BufferUsages, CachedComputePipelineId, CachedPipelineState,
-      ComputePassDescriptor, ComputePipelineDescriptor, MapMode, PipelineCache, PollType,
-      ShaderStages, ShaderType, StorageTextureAccess, TextureFormat, TextureUsages,
+      BindGroup, BindGroupEntries, BindGroupLayout, BindGroupLayoutEntries, BufferInitDescriptor,
+      BufferUsages, CachedComputePipelineId, CachedPipelineState, ComputePassDescriptor,
+      ComputePipelineDescriptor, PipelineCache, ShaderStages, ShaderType, StorageTextureAccess,
+      TextureFormat, TextureUsages,
       binding_types::{texture_storage_2d, uniform_buffer},
     },
     renderer::{RenderContext, RenderDevice},
@@ -107,7 +104,7 @@ struct MandelbrotImageBindGroups(BindGroup);
 
 fn prepare_bind_group(
   mut commands: Commands,
-  pipeline: Res<MandelbrotPipeline>,
+  pipeline: ResMut<MandelbrotPipeline>,
   gpu_images: Res<RenderAssets<GpuImage>>,
   game_of_life_images: Res<MandelbrotImages>,
   render_device: Res<RenderDevice>,
@@ -115,52 +112,19 @@ fn prepare_bind_group(
 ) {
   uniform_data.time += 1;
 
+  let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
+    label: Some("Uniforms"),
+    contents: bytes_of(&*uniform_data),
+    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
+  });
+
   let view = gpu_images.get(&game_of_life_images.texture).unwrap();
   let bind_group_0 = render_device.create_bind_group(
     None,
     &pipeline.texture_bind_group_layout,
-    &BindGroupEntries::sequential((
-      &view.texture_view,
-      pipeline.uniform_buffer.as_entire_buffer_binding(),
-    )),
+    &BindGroupEntries::sequential((&view.texture_view, buffer.as_entire_buffer_binding())),
   );
   commands.insert_resource(MandelbrotImageBindGroups(bind_group_0));
-}
-
-fn update_uniforms(
-  pipeline: Res<MandelbrotPipeline>,
-  uniform_data: Res<Uniforms>,
-  render_device: Res<RenderDevice>,
-) {
-  static MAPPED: AtomicBool = AtomicBool::new(false);
-
-  let uniform_data = *uniform_data;
-  let buffer = pipeline.mapped_uniform_buffer.clone();
-  if MAPPED.swap(true, Ordering::SeqCst) {
-    return;
-  }
-
-  // Maps the buffer so it can be read on the cpu
-  pipeline
-    .mapped_uniform_buffer
-    .slice(..)
-    .map_async(MapMode::Write, move |r| match r {
-      // This will execute once the gpu is ready, so after the call to poll()
-      Ok(_) => {
-        buffer
-          .slice(..)
-          .get_mapped_range_mut()
-          .copy_from_slice(bytes_of(&uniform_data));
-
-        buffer.unmap();
-        MAPPED.store(false, Ordering::SeqCst);
-      }
-      Err(err) => panic!("Failed to map buffer {err}"),
-    });
-
-  render_device
-    .poll(PollType::Wait)
-    .expect("Failed to wait for render device");
 }
 
 struct MandelbrotComputePlugin;
@@ -176,10 +140,7 @@ impl Plugin for MandelbrotComputePlugin {
       .add_systems(RenderStartup, init_mandelbrot_pipeline)
       .add_systems(
         Render,
-        (
-          prepare_bind_group.in_set(RenderSystems::PrepareBindGroups),
-          update_uniforms.after(RenderSystems::Render),
-        ),
+        prepare_bind_group.in_set(RenderSystems::PrepareBindGroups),
       );
 
     let mut render_graph = render_app.world_mut().resource_mut::<RenderGraph>();
@@ -192,8 +153,6 @@ impl Plugin for MandelbrotComputePlugin {
 struct MandelbrotPipeline {
   texture_bind_group_layout: BindGroupLayout,
   checker_board_pipeline: CachedComputePipelineId,
-  uniform_buffer: Buffer,
-  mapped_uniform_buffer: Buffer,
 }
 
 fn init_mandelbrot_pipeline(
@@ -202,18 +161,7 @@ fn init_mandelbrot_pipeline(
   asset_server: Res<AssetServer>,
   pipeline_cache: Res<PipelineCache>,
 ) {
-  let uniforms = Uniforms { time: 0 };
-  let buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-    label: Some("Uniforms"),
-    contents: bytes_of(&uniforms),
-    usage: BufferUsages::UNIFORM | BufferUsages::COPY_DST,
-  });
-  let mapped_buffer = render_device.create_buffer_with_data(&BufferInitDescriptor {
-    label: Some("Mapped uniforms"),
-    contents: bytes_of(&uniforms),
-    usage: BufferUsages::MAP_WRITE | BufferUsages::COPY_SRC,
-  });
-  commands.insert_resource(uniforms);
+  commands.insert_resource(Uniforms { time: 0 });
 
   let texture_bind_group_layout = render_device.create_bind_group_layout(
     "Mandelbrot",
@@ -237,8 +185,6 @@ fn init_mandelbrot_pipeline(
   commands.insert_resource(MandelbrotPipeline {
     texture_bind_group_layout,
     checker_board_pipeline,
-    uniform_buffer: buffer,
-    mapped_uniform_buffer: mapped_buffer,
   });
 }
 
@@ -290,14 +236,6 @@ impl render_graph::Node for MandelbrotNode {
     let bind_group = &world.resource::<MandelbrotImageBindGroups>().0;
     let pipeline_cache = world.resource::<PipelineCache>();
     let pipeline = world.resource::<MandelbrotPipeline>();
-
-    render_context.command_encoder().copy_buffer_to_buffer(
-      &pipeline.mapped_uniform_buffer,
-      0,
-      &pipeline.uniform_buffer,
-      0,
-      size_of::<Uniforms>() as u64,
-    );
 
     let mut pass = render_context
       .command_encoder()
