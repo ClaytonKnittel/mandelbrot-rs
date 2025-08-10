@@ -5,8 +5,10 @@ struct Uniforms {
 @group(0) @binding(0) var output: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 
-const MAX_ITERS: u32 = 2000;
+const MAX_ITERS: u32 = 200;
 const DIVERGENCE_BOUND: f32 = 1.e5;
+
+const POINT: vec2<f32> = vec2<f32>(0.743643887037151, 0.131825904205330);
 
 struct Complex {
     x: f32,
@@ -38,25 +40,44 @@ fn divergence(c: Complex) -> f32 {
     return -1.;
 }
 
-fn mandelbrot_color(x: f32, y: f32) -> vec4<f32> {
-    let c: Complex = Complex(x, y);
+fn hsb2rgb(h: f32, s: f32, b: f32) -> vec3<f32> {
+    let k = vec3<f32>(5.0, 3.0, 1.0);
+    let p = abs(fract(vec3<f32>(h) + k / 6.0) * 6.0 - 3.0);
+    let rgb = clamp(p - 1.0, vec3<f32>(0.0), vec3<f32>(1.0));
+    return b * mix(vec3<f32>(1.0), rgb, s);
+}
+
+fn to_mandel_coords(location: vec2<f32>) -> vec2<f32> {
+    let f = pow(0.5, f32(uniforms.time) / 75.);
+    return vec2<f32>((2. * location.x / 1280. - 1.) * f - POINT.x,
+        (2. * location.y / 720. - 1.) * f - POINT.y);
+}
+
+fn mandelbrot_color(pos: vec2<f32>) -> vec4<f32> {
+    let mandel_pos = to_mandel_coords(pos);
+    let c: Complex = Complex(mandel_pos.x, mandel_pos.y);
     let d = divergence(c);
     if d < 0. {
         return vec4<f32>(0., 0., 0., 1.);
     }
 
-    let q = d / f32(MAX_ITERS);
-    let r = sqrt(q);
-    return vec4<f32>(r, q, q * q, 1.);
+    let decay = pow(1. - exp(-d / 20.), 2.);
+    let angle = (d / 180. + .5) % 1.;
+    let rgb = hsb2rgb(angle, 1., decay);
+    return vec4<f32>(rgb.r, rgb.g, rgb.b, 1.);
+}
+
+fn anti_aliased_color(location: vec2<f32>) -> vec4<f32> {
+    let c1 = mandelbrot_color(location + vec2<f32>(-0.125, -0.375));
+    let c2 = mandelbrot_color(location + vec2<f32>(0.375, -0.125));
+    let c3 = mandelbrot_color(location + vec2<f32>(-0.375, 0.125));
+    let c4 = mandelbrot_color(location + vec2<f32>(0.125, 0.375));
+    return (c1 + c2 + c3 + c4) / 4.;
 }
 
 @compute @workgroup_size(8, 8, 1)
 fn checker_board(@builtin(global_invocation_id) invocation_id: vec3<u32>) {
     let location = vec2<i32>(i32(invocation_id.x), i32(invocation_id.y));
-
-    let f = pow(0.5, f32(uniforms.time) / 200.);
-    let x = (2. * f32(invocation_id.x) / 1280. - 1.) * f;
-    let y = (2. * f32(invocation_id.y) / 720. - 1.) * f + 1.;
-
-    textureStore(output, location, mandelbrot_color(x, y));
+    textureStore(output, location,
+        anti_aliased_color(vec2<f32>(f32(location.x), f32(location.y))));
 }
