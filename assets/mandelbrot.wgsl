@@ -5,7 +5,7 @@ struct Uniforms {
 @group(0) @binding(0) var output: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 
-const MAX_ITERS: u32 = 2000;
+const MAX_ITERS: u32 = 2000u;
 const DIVERGENCE_BOUND: f32 = 1.e5;
 
 const POINT: vec2<f32> = vec2<f32>(0.743643887037151, 0.131825904205330);
@@ -20,7 +20,7 @@ fn complex_add(a: Complex, b: Complex) -> Complex {
 }
 
 fn complex_sq(z: Complex) -> Complex {
-    return Complex(z.x * z.x - z.y * z.y, 2 * (z.x * z.y));
+    return Complex(z.x * z.x - z.y * z.y, 2. * (z.x * z.y));
 }
 
 fn complex_mag2(z: Complex) -> f32 {
@@ -34,7 +34,7 @@ fn divergence(c: Complex) -> f32 {
         z = complex_add(complex_sq(z), c);
         let mag = complex_mag2(z);
         if mag >= DIVERGENCE_BOUND * DIVERGENCE_BOUND {
-            return f32(i) - log(log(mag) / log(DIVERGENCE_BOUND)) / log(2);
+            return f32(i) - log(log(mag) / log(DIVERGENCE_BOUND)) / log(2.);
         }
     }
     return -1.;
