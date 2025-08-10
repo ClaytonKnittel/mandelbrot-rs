@@ -5,7 +5,7 @@ struct Uniforms {
 @group(0) @binding(0) var output: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 
-const MAX_ITERS: u32 = 200;
+const MAX_ITERS: u32 = 2000;
 const DIVERGENCE_BOUND: f32 = 1.e5;
 
 const POINT: vec2<f32> = vec2<f32>(0.743643887037151, 0.131825904205330);

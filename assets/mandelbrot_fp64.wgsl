@@ -81,6 +81,21 @@ fn mul64(a: fp64, b: fp64) -> fp64 {
     return p;
 }
 
+fn pow64(a: fp64, p: u32) -> fp64 {
+    var v = a;
+    var pow = p;
+    var result = fp64(1.0, 0.0);
+
+    while pow > 0u {
+        if (pow & 1u) != 0u {
+            result = mul64(result, v);
+        }
+        v = mul64(v, v);
+        pow >>= 1u;
+    }
+    return result;
+}
+
 fn lt(a: fp64, b: fp64) -> bool {
     return a.high < b.high || (a.high == b.high && a.low < b.low);
 }
@@ -92,7 +107,7 @@ struct Uniforms {
 @group(0) @binding(0) var output: texture_storage_2d<rgba32float, write>;
 @group(0) @binding(1) var<uniform> uniforms: Uniforms;
 
-const MAX_ITERS: u32 = 200;
+const MAX_ITERS: u32 = 2000;
 const DIVERGENCE_BOUND: f32 = 1.e5;
 
 const POINT: vec2<f32> = vec2<f32>(0.743643887037151, 0.131825904205330);
@@ -136,15 +151,15 @@ fn hsb2rgb(h: f32, s: f32, b: f32) -> vec3<f32> {
     return b * mix(vec3<f32>(1.0), rgb, s);
 }
 
-fn to_mandel_coords(location: vec2<f32>) -> vec2<f32> {
-    let f = pow(0.5, f32(uniforms.time) / 150.);
-    return vec2<f32>((2. * location.x / 1280. - 1.) * f - POINT.x,
-        (2. * location.y / 720. - 1.) * f - POINT.y);
+fn to_mandel_coords(location: vec2<f32>) -> array<fp64, 2> {
+    let f = pow64(split64(0.99), uniforms.time);
+    return array<fp64, 2>(sub64(mul64(split64(2. * location.x / 1280. - 1.), f), split64(POINT.x)),
+        sub64(mul64(split64(2. * location.y / 720. - 1.), f), split64(POINT.y)));
 }
 
 fn mandelbrot_color(pos: vec2<f32>) -> vec4<f32> {
     let mandel_pos = to_mandel_coords(pos);
-    let c: Complex = Complex(split64(mandel_pos.x), split64(mandel_pos.y));
+    let c: Complex = Complex(mandel_pos[0], mandel_pos[1]);
     let d = divergence(c);
     if d < 0. {
         return vec4<f32>(0., 0., 0., 1.);
