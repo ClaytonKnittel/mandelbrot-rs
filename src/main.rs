@@ -16,7 +16,6 @@ use bevy::{
     world::World,
   },
   image::Image,
-  log::info,
   math::{Vec2, Vec3},
   prelude::{PluginGroup, default},
   render::{
